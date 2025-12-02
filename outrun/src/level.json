@@ -1,0 +1,43 @@
+{
+  "trackName": "Oval Circuit",
+  "segmentLength": 200,
+  "roadWidth": 2000,
+  "lanes": 3,
+  "fogColor": "#72D7EE",
+  "roadData": [
+    {
+      "type": "straight",
+      "length": 50
+    },
+    {
+      "type": "curve",
+      "length": 200,
+      "curveStrength": 4,
+      "heightChange": 2000
+    },
+    {
+      "type": "straight",
+      "length": 50
+    },
+    {
+      "type": "curve",
+      "length": 200,
+      "curveStrength": 4,
+      "heightChange": -2000
+    },
+    {
+      "type": "straight",
+      "length": 50
+    },
+    {
+      "type": "curve",
+      "length": 200,
+      "curveStrength": -2,
+      "heightChange": 0
+    },
+    {
+      "type": "straight",
+      "length": 100
+    }
+  ]
+}
