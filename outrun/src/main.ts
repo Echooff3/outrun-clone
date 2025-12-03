@@ -56,6 +56,8 @@ import { PlayerState, LevelData, Point3D, Segment } from "./types";
   const businessTexture = await Assets.load("assets/business.webp");
   const churchTexture = await Assets.load("assets/church.webp");
   const gasStationTexture = await Assets.load("assets/gas_station.webp");
+  const startScreenTexture = await Assets.load("assets/start-screen.png");
+  const finishScreenTexture = await Assets.load("assets/finish-screen.png");
 
   const textures: Record<string, Texture> = {
     tree: treeTexture,
@@ -64,6 +66,8 @@ import { PlayerState, LevelData, Point3D, Segment } from "./types";
     business: businessTexture,
     church: churchTexture,
     gas_station: gasStationTexture,
+    start_screen: startScreenTexture,
+    finish_screen: finishScreenTexture,
   };
 
   const graphics = new Graphics();
@@ -93,7 +97,14 @@ import { PlayerState, LevelData, Point3D, Segment } from "./types";
   const speedElement = document.getElementById("speed")!;
   const scoreElement = document.getElementById("score")!;
   const timeElement = document.getElementById("time")!;
-  let totalTime = 0;
+  const stageElement = document.getElementById("stage")!;
+
+  let timeLeft = (levelData as LevelData).initialTime;
+  let currentLap = 1;
+  const totalLaps = 3;
+  const checkpoints = (levelData as LevelData).checkpoints;
+  // Track which checkpoints have been triggered in the current lap
+  const triggeredCheckpoints: Set<number> = new Set();
 
   // --- Game Loop ---
   app.ticker.add(() => {
@@ -121,9 +132,17 @@ import { PlayerState, LevelData, Point3D, Segment } from "./types";
         resetTimer = 0;
       }
 
-      // Still update HUD time
-      totalTime += dt;
-      timeElement.innerText = totalTime.toFixed(2);
+      // Timer still ticks during reset? In arcade games, usually yes.
+      timeLeft -= dt;
+      if (timeLeft < 0) timeLeft = 0;
+      timeElement.innerText = Math.ceil(timeLeft).toString();
+      return;
+    }
+
+    // Game Over Check
+    if (timeLeft <= 0) {
+      speed = 0; // Stop the car
+      // Optional: Add Game Over UI logic here
       return;
     }
 
@@ -156,25 +175,58 @@ import { PlayerState, LevelData, Point3D, Segment } from "./types";
 
     // Move player
     position += speed * dt;
-    while (position >= track.trackLength) position -= track.trackLength;
+
+    // Lap Logic
+    while (position >= track.trackLength) {
+      position -= track.trackLength;
+      currentLap++;
+      triggeredCheckpoints.clear(); // Reset checkpoints for new lap
+      if (currentLap > totalLaps) {
+        // Level Complete!
+        console.log("YOU WIN!");
+        speed = 0;
+        // Optional: Add Win UI logic here
+        return;
+      }
+      stageElement.innerText = currentLap.toString();
+    }
     while (position < 0) position += track.trackLength;
 
+    // Checkpoints
+    const currentSegmentIndex = Math.floor(position / SEGMENT_LENGTH);
+    // Check if we just passed a checkpoint
+    // We iterate through all checkpoints to see if we are "past" them but haven't triggered them yet
+    // This is simple but assumes we don't skip over a huge chunk of track in one frame
+    for (const cp of checkpoints) {
+      if (
+        !triggeredCheckpoints.has(cp.segmentIndex) &&
+        currentSegmentIndex >= cp.segmentIndex
+      ) {
+        triggeredCheckpoints.add(cp.segmentIndex);
+        timeLeft += cp.timeBonus;
+        // Optional: Visual feedback for time bonus
+        console.log(`CHECKPOINT! +${cp.timeBonus}s`);
+      }
+    }
+
     // Update HUD
-    totalTime += dt;
+    timeLeft -= dt;
+    if (timeLeft < 0) timeLeft = 0;
+
     speedElement.innerText = Math.floor(speed / 100).toString();
-    scoreElement.innerText = Math.floor(position / 100).toString();
-    timeElement.innerText = totalTime.toFixed(2);
+    scoreElement.innerText = Math.floor(position / 100).toString(); // Score logic might need update later
+    timeElement.innerText = Math.ceil(timeLeft).toString();
 
     // Collision Detection
-    const playerSegment = track.findSegment(position + SEGMENT_LENGTH / 2); 
+    const playerSegment = track.findSegment(position + SEGMENT_LENGTH / 2);
     // Check segment we are entering/inside
-    
+
     for (const sprite of playerSegment.sprites) {
       const spriteW = 0.15; // Collision width
       if (Math.abs(player.x - sprite.offset) < spriteW) {
         // Collision!
         speed = 0;
-        
+
         if (Math.abs(player.x) > 1) {
           isResetting = true;
           resetTimer = 0;

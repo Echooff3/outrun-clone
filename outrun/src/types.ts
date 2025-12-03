@@ -38,12 +38,19 @@ export interface RoadSectionData {
   heightChange?: number;
 }
 
+export interface Checkpoint {
+  segmentIndex: number;
+  timeBonus: number;
+}
+
 export interface LevelData {
   trackName: string;
   segmentLength: number;
   roadWidth: number;
   lanes: number;
   fogColor: string;
+  initialTime: number;
+  checkpoints: Checkpoint[];
   roadData: RoadSectionData[];
 }
 

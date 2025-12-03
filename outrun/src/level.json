@@ -4,6 +4,11 @@
   "roadWidth": 2000,
   "lanes": 3,
   "fogColor": "#72D7EE",
+  "initialTime": 60,
+  "checkpoints": [
+    { "segmentIndex": 300, "timeBonus": 20 },
+    { "segmentIndex": 600, "timeBonus": 20 }
+  ],
   "roadData": [
     {
       "type": "straight",
