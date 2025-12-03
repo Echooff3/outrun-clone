@@ -11,7 +11,7 @@ A JavaScript clone of the classic arcade racer OutRun, built with Pixi.js and Ty
 - **Performance**: Efficient rendering loop using Pixi.js `Graphics`.
 
 ### 🛣️ Track System
-- **JSON Level Format**: Tracks are defined in `src/level.json` allowing easy creation of straights, curves, and hills.
+- **JSON Level Format**: Tracks are defined in `src/levels/*.json` allowing easy creation of straights, curves, and hills.
 - **Procedural Generation**: The `Track` class parses level data into renderable segments.
 - **Visuals**: Alternating road colors (light/dark) for speed perception, grass, and rumble strips.
 

@@ -8,7 +8,9 @@ import {
 } from "pixi.js";
 import { Track } from "./Track";
 import { InputHandler } from "./Input";
-import levelData from "./level.json";
+import ovalLevel from "./levels/oval.json";
+import figure8Level from "./levels/figure8.json";
+import randomLevel from "./levels/random.json";
 import { PlayerState, LevelData, Point3D, Segment } from "./types";
 
 (async () => {
@@ -34,22 +36,72 @@ import { PlayerState, LevelData, Point3D, Segment } from "./types";
     decell: -SEGMENT_LENGTH / STEP / 5,
     offRoadDecell: -SEGMENT_LENGTH / STEP / 2,
     offRoadLimit: SEGMENT_LENGTH / STEP / 4,
+    turn: 0,
   };
 
   let position = 0;
+  let totalDistance = 0;
   let speed = 0;
   let drawSprites = true;
   let isResetting = false;
   let resetTimer = 0;
   let resetStartX = 0;
+  let finishGateAdded = false;
+  let track: Track;
+  let levelData: LevelData;
+  let timeLeft = 0;
+  let currentLap = 1;
+  const triggeredCheckpoints: Set<number> = new Set();
+  const totalLaps = 3;
+  let isGameRunning = false;
 
   // --- Setup ---
   const app = new Application();
   await app.init({ background: "#72D7EE", resizeTo: window });
   document.getElementById("pixi-container")!.appendChild(app.canvas);
 
+  // Helper to remove white background
+  async function cleanTexture(texture: Texture): Promise<Texture> {
+    const canvas = document.createElement("canvas");
+    canvas.width = texture.width;
+    canvas.height = texture.height;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return texture;
+
+    const resource = texture.source.resource;
+
+    if (
+      resource &&
+      (resource instanceof HTMLImageElement || resource instanceof ImageBitmap)
+    ) {
+      ctx.drawImage(resource, 0, 0);
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const data = imageData.data;
+      for (let i = 0; i < data.length; i += 4) {
+        const r = data[i];
+        const g = data[i + 1];
+        const b = data[i + 2];
+        // Threshold for white
+        if (r > 240 && g > 240 && b > 240) {
+          data[i + 3] = 0;
+        }
+      }
+      ctx.putImageData(imageData, 0, 0);
+      return Texture.from(canvas);
+    }
+    return texture;
+  }
+
   // Load Assets
   const carTexture = await Assets.load("assets/car.webp");
+  const carTurnTextures: Texture[] = [];
+  for (let i = 1; i <= 20; i++) {
+    const num = i.toString().padStart(3, "0");
+    let texture = await Assets.load(`assets/car/car2_${num}.png`);
+    texture = await cleanTexture(texture);
+    carTurnTextures.push(texture);
+  }
+
   const treeTexture = await Assets.load("assets/tree.webp");
   const rockTexture = await Assets.load("assets/rock.webp");
   const fastFoodTexture = await Assets.load("assets/fast_food.webp");
@@ -58,6 +110,7 @@ import { PlayerState, LevelData, Point3D, Segment } from "./types";
   const gasStationTexture = await Assets.load("assets/gas_station.webp");
   const startScreenTexture = await Assets.load("assets/start-screen.png");
   const finishScreenTexture = await Assets.load("assets/finish-screen.png");
+  const checkpointTexture = await Assets.load("assets/checkpoint.png");
 
   const textures: Record<string, Texture> = {
     tree: treeTexture,
@@ -68,6 +121,7 @@ import { PlayerState, LevelData, Point3D, Segment } from "./types";
     gas_station: gasStationTexture,
     start_screen: startScreenTexture,
     finish_screen: finishScreenTexture,
+    checkpoint: checkpointTexture,
   };
 
   const graphics = new Graphics();
@@ -78,41 +132,145 @@ import { PlayerState, LevelData, Point3D, Segment } from "./types";
 
   const playerSprite = new Sprite(carTexture);
   playerSprite.anchor.set(0.5, 1);
-  playerSprite.scale.set(0.25);
+  playerSprite.scale.set(0.375);
   playerSprite.x = app.screen.width / 2;
   playerSprite.y = app.screen.height - 20;
   app.stage.addChild(playerSprite);
 
-  const track = new Track(levelData as LevelData);
   const input = new InputHandler();
-
-  window.addEventListener("keydown", (e) => {
-    if (e.key === "0") {
-      drawSprites = !drawSprites;
-      console.log("Draw sprites:", drawSprites);
-    }
-  });
 
   // HUD Elements
   const speedElement = document.getElementById("speed")!;
   const scoreElement = document.getElementById("score")!;
   const timeElement = document.getElementById("time")!;
   const stageElement = document.getElementById("stage")!;
+  const gameOverOverlay = document.getElementById("game-over-overlay")!;
+  const restartBtn = document.getElementById("restart-btn")!;
+  const levelSelectOverlay = document.getElementById("level-select-overlay")!;
+  const levelList = document.getElementById("level-list")!;
 
-  let timeLeft = (levelData as LevelData).initialTime;
-  let currentLap = 1;
-  const totalLaps = 3;
-  const checkpoints = (levelData as LevelData).checkpoints;
-  // Track which checkpoints have been triggered in the current lap
-  const triggeredCheckpoints: Set<number> = new Set();
+  // Levels
+  const levels = [ovalLevel, figure8Level, randomLevel] as LevelData[];
+
+  function initLevelSelect() {
+    levelList.innerHTML = "";
+    levels.forEach((level) => {
+      const card = document.createElement("div");
+      card.className = "level-card";
+
+      // Calculate estimated length
+      let totalLength = 0;
+      level.roadData.forEach((section) => {
+        totalLength += section.length * level.segmentLength;
+      });
+      const km = (totalLength / 100000).toFixed(1); // Rough estimate
+
+      card.innerHTML = `
+        <h2>${level.trackName}</h2>
+        <p>Length: ~${km} km</p>
+        <p>Laps: ${totalLaps}</p>
+      `;
+      card.addEventListener("click", () => {
+        startGame(level);
+      });
+      levelList.appendChild(card);
+    });
+    levelSelectOverlay.classList.remove("hidden");
+  }
+
+  function startGame(selectedLevel: LevelData) {
+    levelData = selectedLevel;
+    track = new Track(levelData);
+
+    // Reset Game State
+    position = 0;
+    totalDistance = 0;
+    speed = 0;
+    currentLap = 1;
+    timeLeft = levelData.initialTime;
+    triggeredCheckpoints.clear();
+    finishGateAdded = false;
+    isGameRunning = true;
+
+    // Reset Player
+    player.x = 0;
+    player.speed = 0;
+    player.turn = 0;
+
+    // Place Start Gate
+    const START_GATE_INDEX = 9;
+    track.segments[START_GATE_INDEX].sprites.push({
+      source: "start_screen",
+      offset: 0,
+    });
+
+    // Place Checkpoints
+    levelData.checkpoints.forEach((cp) => {
+      track.segments[cp.segmentIndex].sprites.push({
+        source: "checkpoint",
+        offset: 0,
+      });
+    });
+
+    // Update UI
+    levelSelectOverlay.classList.add("hidden");
+    gameOverOverlay.classList.add("hidden");
+    stageElement.innerText = "1";
+    app.renderer.background.color = levelData.fogColor || "#72D7EE";
+  }
+
+  restartBtn.addEventListener("click", () => {
+    // Go back to level select
+    gameOverOverlay.classList.add("hidden");
+    levelSelectOverlay.classList.remove("hidden");
+    isGameRunning = false;
+  });
+
+  window.addEventListener("keydown", (e) => {
+    if (e.key === "0") {
+      drawSprites = !drawSprites;
+      console.log("Draw sprites:", drawSprites);
+    }
+    if (e.key === "Escape") {
+      isGameRunning = false;
+      levelSelectOverlay.classList.remove("hidden");
+    }
+  });
 
   // --- Game Loop ---
   app.ticker.add(() => {
+    if (!isGameRunning) return;
     update(STEP);
     render();
   });
 
   function update(dt: number) {
+    const START_GATE_INDEX = 9;
+
+    // Start Gate Removal
+    if (position > (START_GATE_INDEX + 5) * SEGMENT_LENGTH) {
+      const startSegment = track.segments[START_GATE_INDEX];
+      const gateIndex = startSegment.sprites.findIndex(
+        (s) => s.source === "start_screen",
+      );
+      if (gateIndex !== -1) {
+        startSegment.sprites.splice(gateIndex, 1);
+      }
+    }
+
+    // Finish Gate Placement
+    if (!finishGateAdded && currentLap === totalLaps) {
+      const distToEnd = track.trackLength - position;
+      if (distToEnd < DRAW_DISTANCE * SEGMENT_LENGTH) {
+        const finishIndex = track.segments.length - 20;
+        track.segments[finishIndex].sprites.push({
+          source: "finish_screen",
+          offset: 0,
+        });
+        finishGateAdded = true;
+      }
+    }
+
     if (isResetting) {
       resetTimer += dt;
       const WAIT_TIME = 1.0;
@@ -163,10 +321,19 @@ import { PlayerState, LevelData, Point3D, Segment } from "./types";
     }
 
     // Steering
+    const TURN_SPEED = dt * 5;
     if (input.isLeft) {
       player.x = player.x - 0.05 * (speed / player.maxSpeed); // Speed dependent steering
+      player.turn = Math.max(-1, player.turn - TURN_SPEED);
     } else if (input.isRight) {
       player.x = player.x + 0.05 * (speed / player.maxSpeed);
+      player.turn = Math.min(1, player.turn + TURN_SPEED);
+    } else {
+      if (player.turn > 0) {
+        player.turn = Math.max(0, player.turn - TURN_SPEED);
+      } else if (player.turn < 0) {
+        player.turn = Math.min(0, player.turn + TURN_SPEED);
+      }
     }
 
     // Physics limits
@@ -175,6 +342,7 @@ import { PlayerState, LevelData, Point3D, Segment } from "./types";
 
     // Move player
     position += speed * dt;
+    totalDistance += speed * dt;
 
     // Lap Logic
     while (position >= track.trackLength) {
@@ -185,7 +353,7 @@ import { PlayerState, LevelData, Point3D, Segment } from "./types";
         // Level Complete!
         console.log("YOU WIN!");
         speed = 0;
-        // Optional: Add Win UI logic here
+        gameOverOverlay.classList.remove("hidden");
         return;
       }
       stageElement.innerText = currentLap.toString();
@@ -194,9 +362,8 @@ import { PlayerState, LevelData, Point3D, Segment } from "./types";
 
     // Checkpoints
     const currentSegmentIndex = Math.floor(position / SEGMENT_LENGTH);
-    // Check if we just passed a checkpoint
-    // We iterate through all checkpoints to see if we are "past" them but haven't triggered them yet
-    // This is simple but assumes we don't skip over a huge chunk of track in one frame
+    const checkpoints = levelData.checkpoints;
+
     for (const cp of checkpoints) {
       if (
         !triggeredCheckpoints.has(cp.segmentIndex) &&
@@ -204,7 +371,6 @@ import { PlayerState, LevelData, Point3D, Segment } from "./types";
       ) {
         triggeredCheckpoints.add(cp.segmentIndex);
         timeLeft += cp.timeBonus;
-        // Optional: Visual feedback for time bonus
         console.log(`CHECKPOINT! +${cp.timeBonus}s`);
       }
     }
@@ -214,7 +380,7 @@ import { PlayerState, LevelData, Point3D, Segment } from "./types";
     if (timeLeft < 0) timeLeft = 0;
 
     speedElement.innerText = Math.floor(speed / 100).toString();
-    scoreElement.innerText = Math.floor(position / 100).toString(); // Score logic might need update later
+    scoreElement.innerText = Math.floor(totalDistance / 100).toString();
     timeElement.innerText = Math.ceil(timeLeft).toString();
 
     // Collision Detection
@@ -222,6 +388,15 @@ import { PlayerState, LevelData, Point3D, Segment } from "./types";
     // Check segment we are entering/inside
 
     for (const sprite of playerSegment.sprites) {
+      // Ignore start, finish, and checkpoint screens for collision
+      if (
+        sprite.source === "start_screen" ||
+        sprite.source === "finish_screen" ||
+        sprite.source === "checkpoint"
+      ) {
+        continue;
+      }
+
       const spriteW = 0.15; // Collision width
       if (Math.abs(player.x - sprite.offset) < spriteW) {
         // Collision!
@@ -237,6 +412,17 @@ import { PlayerState, LevelData, Point3D, Segment } from "./types";
   }
 
   function render() {
+    const turnIndex = Math.floor(
+      Math.abs(player.turn) * (carTurnTextures.length - 1),
+    );
+    playerSprite.texture = carTurnTextures[turnIndex];
+    const currentScaleX = Math.abs(playerSprite.scale.x);
+    if (player.turn < 0) {
+      playerSprite.scale.x = -currentScaleX;
+    } else {
+      playerSprite.scale.x = currentScaleX;
+    }
+
     playerSprite.visible = drawSprites;
     graphics.clear();
     spriteContainer.removeChildren();
@@ -267,12 +453,6 @@ import { PlayerState, LevelData, Point3D, Segment } from "./types";
       const looped = segment.index < baseSegment.index;
 
       segment.clip = maxY;
-
-      // Camera Z position relative to segment
-      // const segmentZ =
-      //   (looped ? track.trackLength : 0) +
-      //   segment.index * SEGMENT_LENGTH -
-      //   position;
 
       // Project
       project(
@@ -365,7 +545,12 @@ import { PlayerState, LevelData, Point3D, Segment } from "./types";
       sprite.x = s.x;
       sprite.y = s.y;
 
-      const SPRITE_SCALE = 1500; // World width of sprite
+      let customScale = 1;
+      if (s.texture === startScreenTexture) {
+        customScale = 1.75;
+      }
+
+      const SPRITE_SCALE = 1500 * customScale; // World width of sprite
       const w = (s.scale * SPRITE_SCALE * app.screen.width) / 2;
       const scale = w / s.texture.width;
 
@@ -503,4 +688,7 @@ import { PlayerState, LevelData, Point3D, Segment } from "./types";
     g.poly([x1, y1, x2, y2, x3, y3, x4, y4]);
     g.fill(color);
   }
+
+  // Start the level select
+  initLevelSelect();
 })();

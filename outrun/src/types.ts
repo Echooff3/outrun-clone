@@ -64,4 +64,5 @@ export interface PlayerState {
   decell: number;
   offRoadDecell: number;
   offRoadLimit: number;
+  turn: number;
 }

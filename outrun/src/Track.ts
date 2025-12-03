@@ -54,25 +54,6 @@ export class Track {
     });
 
     this.trackLength = this.segments.length * this.segmentLength;
-
-    // Add Start Screen
-    if (this.segments.length > 10) {
-      this.segments[10].sprites.push({ source: "start_screen", offset: -2.5 });
-      this.segments[10].sprites.push({ source: "start_screen", offset: 2.5 });
-    }
-
-    // Add Finish Screen
-    if (this.segments.length > 50) {
-      const finishIndex = this.segments.length - 50;
-      this.segments[finishIndex].sprites.push({
-        source: "finish_screen",
-        offset: -2.5,
-      });
-      this.segments[finishIndex].sprites.push({
-        source: "finish_screen",
-        offset: 2.5,
-      });
-    }
   }
 
   private addRoadSection(length: number, curve: number, height: number) {

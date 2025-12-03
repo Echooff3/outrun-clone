@@ -15,19 +15,19 @@ export class InputHandler {
   }
 
   get isGas(): boolean {
-    return this.keys["KeyW"] || false;
+    return this.keys["KeyW"] || this.keys["ArrowUp"] || false;
   }
 
   get isBrake(): boolean {
-    return this.keys["KeyS"] || false;
+    return this.keys["KeyS"] || this.keys["ArrowDown"] || false;
   }
 
   get isLeft(): boolean {
-    return this.keys["KeyA"] || false;
+    return this.keys["KeyA"] || this.keys["ArrowLeft"] || false;
   }
 
   get isRight(): boolean {
-    return this.keys["KeyD"] || false;
+    return this.keys["KeyD"] || this.keys["ArrowRight"] || false;
   }
 
   get isReverse(): boolean {

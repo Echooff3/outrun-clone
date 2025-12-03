@@ -31,12 +31,20 @@
                     <span class="unit">km/h</span>
                 </div>
                 <div class="stage-container">
-                    <span class="label">STAGE</span>
+                    <span class="label">LAP</span>
                     <span id="stage" class="value">1</span>
                 </div>
             </div>
         </div>
         <div id="pixi-container"></div>
+        <div id="level-select-overlay">
+            <h1>SELECT TRACK</h1>
+            <div id="level-list"></div>
+        </div>
+        <div id="game-over-overlay" class="hidden">
+            <h1>FINISH!</h1>
+            <button id="restart-btn">PLAY AGAIN</button>
+        </div>
     </div>
     <script type="module" src="/src/main.ts"></script>
 </body>

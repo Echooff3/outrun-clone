@@ -1,0 +1,23 @@
+{
+  "trackName": "Figure 8",
+  "segmentLength": 200,
+  "roadWidth": 2000,
+  "lanes": 3,
+  "fogColor": "#E6E6FA",
+  "initialTime": 80,
+  "checkpoints": [
+    { "segmentIndex": 400, "timeBonus": 30 },
+    { "segmentIndex": 800, "timeBonus": 30 }
+  ],
+  "roadData": [
+    { "type": "straight", "length": 50 },
+    { "type": "curve", "length": 200, "curveStrength": 4, "heightChange": 0 },
+    { "type": "straight", "length": 50 },
+    { "type": "curve", "length": 200, "curveStrength": -4, "heightChange": 0 },
+    { "type": "straight", "length": 50 },
+    { "type": "curve", "length": 200, "curveStrength": 4, "heightChange": 0 },
+    { "type": "straight", "length": 50 },
+    { "type": "curve", "length": 200, "curveStrength": -4, "heightChange": 0 },
+    { "type": "straight", "length": 100 }
+  ]
+}

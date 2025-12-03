@@ -1,0 +1,25 @@
+{
+  "trackName": "Random Chaos",
+  "segmentLength": 200,
+  "roadWidth": 2000,
+  "lanes": 3,
+  "fogColor": "#FFDAB9",
+  "initialTime": 90,
+  "checkpoints": [
+    { "segmentIndex": 300, "timeBonus": 25 },
+    { "segmentIndex": 600, "timeBonus": 25 },
+    { "segmentIndex": 900, "timeBonus": 25 }
+  ],
+  "roadData": [
+    { "type": "straight", "length": 50 },
+    { "type": "curve", "length": 100, "curveStrength": 2, "heightChange": 1000 },
+    { "type": "curve", "length": 100, "curveStrength": -3, "heightChange": -1000 },
+    { "type": "straight", "length": 30 },
+    { "type": "curve", "length": 150, "curveStrength": 5, "heightChange": 2000 },
+    { "type": "straight", "length": 50 },
+    { "type": "curve", "length": 100, "curveStrength": -5, "heightChange": -2000 },
+    { "type": "straight", "length": 50 },
+    { "type": "curve", "length": 200, "curveStrength": 3, "heightChange": 0 },
+    { "type": "straight", "length": 100 }
+  ]
+}
